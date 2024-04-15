@@ -1,0 +1,12 @@
+{"properties": [
+  {
+    "name": "user.database.oracle",
+    "type": "java.lang.String",
+    "description": "A description for 'user.database.oracle'"
+  },
+  {
+    "name": "pass.database.oracle",
+    "type": "java.lang.String",
+    "description": "A description for 'pass.database.oracle'"
+  }
+]}

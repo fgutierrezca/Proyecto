@@ -3,8 +3,11 @@ package hn.unah.bases.proyecto_playstore;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+import org.springframework.stereotype.Service;
+
 import oracle.jdbc.pool.OracleDataSource;
 
+@Service
 public class Conexion {
 
     public java.sql.Connection openConnection(String user, String password) throws SQLException {

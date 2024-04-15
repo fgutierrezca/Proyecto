@@ -21,6 +21,9 @@ public class ConexionesDisponibles {
 
             while (rslt.next()) {
                 ConexionDTO conexionDTO = new ConexionDTO();
+                if (rslt.getString("username").equals("SYSTEM")) {
+                    continue;
+                }
                 conexionDTO.setSid(rslt.getInt("sid"));
                 conexionDTO.setSerial(rslt.getInt("serial#"));
                 conexionDTO.setUsername(rslt.getString("username"));
