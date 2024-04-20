@@ -7,21 +7,19 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
+import javax.sql.rowset.CachedRowSet;
+
+import hn.unah.bases.proyecto_playstore.DTOs.CampoDTO;
+
 public class IngresarDatosDestino {
 
-    public int ingresarRegistros(String userDBOOrg, String passOrg, String userDBODes, String passDes,
+    public int ingresarRegistros(Connection connOrg ,Connection connDes,
             ArrayList<String> camposOrigen, String tableOrigen, String tableDestino) {
 
         int cantInsert = 0;
 
         try {
-            // Establecer la conexión con la base de datos de origen
-            Conexion conexionOrg = new Conexion();
-            Connection connOrg = conexionOrg.openConnection(userDBOOrg, passOrg);
-
-            // Establecer la conexión con la base de datos de destino
-            Conexion conexionDes = new Conexion();
-            Connection connDes = conexionDes.openConnection(userDBODes, passDes);
+        
 
             // Construir la parte de la consulta SQL para seleccionar los campos de origen
             StringBuilder camposConsulta = new StringBuilder();
@@ -73,4 +71,55 @@ public class IngresarDatosDestino {
 
         return cantInsert;
     }
+
+
+    public int ingresarRegistros2(Connection connDes,
+    CachedRowSet registrosConvertidos, String[] orden , String tableDestino) {
+
+        int cantInsert = 0;
+
+        try {
+            registrosConvertidos.first();
+
+            StringBuilder consultaInsert = new StringBuilder("INSERT INTO " + tableDestino + " VALUES (");
+            for (int i =1; i<=orden.length; i++) {
+
+                consultaInsert.append("?,");
+            }
+            consultaInsert.deleteCharAt(consultaInsert.length() - 1); // Eliminar la última coma
+            consultaInsert.append(")");
+            PreparedStatement stmtInsert = connDes.prepareStatement(consultaInsert.toString());
+
+
+            // Iterar sobre los resultados utilizando el cursor 
+            do{
+                // Insertar los valores en la tabla de destino
+                for (int i =1; i<=orden.length; i++) {
+                    int index = Integer.parseInt(orden[i-1]);
+
+                    stmtInsert.setObject(i, registrosConvertidos.getObject(index));
+                    
+                }
+
+                // Ejecutar la consulta de inserción
+                stmtInsert.executeUpdate();
+                cantInsert++;
+            }while(registrosConvertidos.next());
+            
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return cantInsert;
+    }
+
+    public void alterMaxLength(Connection connDes, String table, String campo, String cambio) throws SQLException {
+        String consulta = "ALTER TABLE " + table + " MODIFY " + campo + " " + cambio;
+        
+        try (PreparedStatement stmt = connDes.prepareStatement(consulta)) {
+            stmt.executeUpdate();
+        }
+    }
+    
 }

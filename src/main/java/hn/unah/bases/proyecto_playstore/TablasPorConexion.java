@@ -7,11 +7,9 @@ import java.util.ArrayList;
 
 public class TablasPorConexion {
     
-    public ArrayList<String> obtenerTablas(String userDB, String pass){
+    public ArrayList<String> obtenerTablas(String userDB, Connection conn2){
         try {
-            Conexion conexion = new Conexion();
-            Connection conn2 = conexion.openConnection(userDB, pass);
-
+            
             PreparedStatement select = conn2.prepareStatement("SELECT table_name FROM all_tables WHERE owner = '" + userDB + "'");
 			ResultSet rslt = select.executeQuery();
 
@@ -21,7 +19,6 @@ public class TablasPorConexion {
                 tablas.add(rslt.getString("table_name"));
 			}
 
-            conexion.closeConnection(conn2);
 
             return tablas;
         } catch (Exception e) {
