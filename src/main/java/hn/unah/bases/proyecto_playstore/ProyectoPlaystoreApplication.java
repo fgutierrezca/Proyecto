@@ -1,9 +1,6 @@
 package hn.unah.bases.proyecto_playstore;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -183,11 +180,10 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 				// CREAMOS LA ESTRUCTURA PARA OBTENER LOS CAMPOS DE LA TABLA
 				CamposPorTabla camposPorTabla = new CamposPorTabla();
 				ArrayList<CampoDTO> campos = new ArrayList<CampoDTO>();
-				ResultSet resultado=null;
-				String consultaFrom =null;
+				
+			
 				boolean fromTable=false;
-				ResultSetMetaData metaData=null;
-				int columnCount=0;
+				
 				switch (opcion) {
 					case 1:
 						from ="tabla";
@@ -240,15 +236,12 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 							try {
 
-								//resultado=camposPorTabla.obtenerCamposConsulta2(conOrigen, consulta);
+								
 								consultaCorrecta = true;
-								campos = camposPorTabla.obtenerCamposConsulta2(conOrigen, consulta);
+								campos = camposPorTabla.obtenerCamposConsulta(conOrigen, consulta);
 								
 								if (campos != null) {
 									consultaCorrecta = true;
-									//ES NECESARIO TENER ESTA CONSULTA PARA OBTENER LOS DATOS LUEGO DE LA TRANSFORMACIÓN
-									//NECESITO TODO LO QUE ESTÁ DESPUES DEL FROM
-									//consultaFrom=camposPorTabla.devolverFrom(consulta);	
 								} else {
 									System.out
 											.println("La consulta no produjo resultados válidos. Intente nuevamente.");
@@ -265,7 +258,7 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 				}// SWITCH DE TABLA O CONSULTA
 
 				// MOSTRAMOS LOS CAMPOS DE LA TABLA O LOS OBTENIDOS CON LA CONSULTA
-				//if(fromTable){
+				
 					i = 0;
 					System.out.printf("\nLos campos de la "+ from +" seleccionada son : \n");
 					for (CampoDTO campo : campos) {
@@ -273,23 +266,7 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 								campo.getMaxLength());
 						i++;
 					}
-				/**}else if(!fromTable){
-					// Obtenemos metadatos sobre el resultado de la consulta
-					System.out.printf("\nLos campos de la consulta son : \n");
-					metaData = resultado.getMetaData();
-					// Obtenemos el número total de columnas en el resultado
-					columnCount = metaData.getColumnCount();
-					if (columnCount > 0) {
-						// Iteramos sobre cada columna en el resultado
-						for (int l = 1; l <= columnCount; l++) {
-
-							System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaData.getColumnName(l), metaData.getColumnTypeName(l),
-							metaData.getColumnDisplaySize(l));
-
-						}
-					} 
-
-				}	*/
+				
 				// Arreglo que permite almacenar los campos que el usuario seleccionó, esto es
 				// lo que trabajaremos en el data convert
 				ArrayList<CampoDTO> camposSelect = new ArrayList<CampoDTO>();
@@ -385,7 +362,7 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 						while (!seleccionCorrecta) {
 							System.out.printf("\nEscoja el campo que desea transformar  \n");
 							indexSelect = input.nextInt();
-							String tipo = camposSelect.get(indexSelect).getDataType();
+							
 							
 							if ("VARCHAR2".equals(camposSelect.get(indexSelect).getDataType())
 									|| "CHAR".equals(camposSelect.get(indexSelect).getDataType())) {
@@ -784,12 +761,12 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 				if(fromTable){
 					
 					int cantInsert = ingresarDatosDestino.ingresarRegistros(conOrigen, conDestino,camposSelectDestino , camposSelectOrden,
-							tablas.get(tableSelect), tablasDes.get(tableSelectDes));
+							tablas.get(tableSelect), tablasDes.get(tableSelectDes),fromTable );
 					System.out.printf("La cantidad de registros ingresados fueron : %d\n", cantInsert);
 				}else if(!fromTable){
 					//si no es una tabla volvemos a armar la consulta para obtener los datos ahora transformados
 					int cantInsert = ingresarDatosDestino.ingresarRegistros(conOrigen, conDestino, camposSelectDestino, camposSelectOrden,
-					"temp_table", tablasDes.get(tableSelectDes));
+					"temp_table", tablasDes.get(tableSelectDes), fromTable);
 					System.out.printf("La cantidad de registros ingresados fueron : %d\n", cantInsert);	
 				}
 				
