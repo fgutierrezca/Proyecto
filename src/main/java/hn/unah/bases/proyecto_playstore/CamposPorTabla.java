@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 
@@ -108,10 +109,88 @@ public class CamposPorTabla {
         return campos;
     }
 
-    public ResultSet obtenerCamposConsulta2(Connection conn2, String consulta) throws SQLException {
+    public ArrayList<CampoDTO> obtenerCamposConsulta2(Connection conn2, String consulta) throws SQLException {
         PreparedStatement select = conn2.prepareStatement(consulta);
         ResultSet rslt = select.executeQuery();
-        return rslt;
+        ArrayList<CampoDTO> campos = new ArrayList<>();
+        
+        // Crear la tabla temporal en la base de datos
+        Statement createTempTable = conn2.createStatement();
+        ResultSetMetaData metaData = rslt.getMetaData();
+        int columnCount = metaData.getColumnCount();
+        StringBuilder createTableQuery = new StringBuilder("CREATE TABLE temp_table (");
+        
+        // Construir la parte de la sentencia SQL para definir las columnas de la tabla temporal
+        for (int i = 1; i <= columnCount; i++) {
+            String columnName = metaData.getColumnName(i);
+            String columnType = metaData.getColumnTypeName(i);
+            int columnSize = metaData.getPrecision(i); // Obtener precisión de la columna
+            createTableQuery.append(columnName).append(" ").append(columnType);
+            if (columnType.equals("NUMBER")) { // Manejar columnas numéricas
+                createTableQuery.append("(").append(columnSize).append(")");
+            } else if (columnSize > 0) {
+                createTableQuery.append("(").append(columnSize);
+                int decimalDigits = metaData.getScale(i); // Obtener la escala de la columna numérica
+                if (decimalDigits > 0) {
+                    createTableQuery.append(",").append(decimalDigits); // Agregar la escala si es un número decimal
+                }
+                createTableQuery.append(")");
+            }
+            if (i < columnCount) {
+                createTableQuery.append(", ");
+            }
+        }
+        createTableQuery.append(")");
+        createTempTable.executeUpdate(createTableQuery.toString());
+        
+        // Insertar los registros en la tabla temporal
+        while (rslt.next()) {
+            StringBuilder insertQuery = new StringBuilder("INSERT INTO temp_table VALUES (");
+            for (int i = 1; i <= columnCount; i++) {
+                // Dependiendo del tipo de dato de la columna, puedes manejarlo adecuadamente aquí
+                // En este ejemplo, se asume que todas las columnas son de tipo String
+                String columnValue = rslt.getString(i);
+                insertQuery.append("'").append(columnValue).append("'");
+                if (i < columnCount) {
+                    insertQuery.append(", ");
+                }
+            }
+            insertQuery.append(")");
+            Statement insertStatement = conn2.createStatement();
+            insertStatement.executeUpdate(insertQuery.toString());
+        }
+
+
+         // Verificamos si la consulta devuelve algún resultado
+         if (columnCount > 0) {
+            // Iteramos sobre cada columna en el resultado
+            for (int i = 1; i <= columnCount; i++) {
+                // Creamos un nuevo objeto CampoDTO para almacenar información sobre la columna
+                CampoDTO campoDTO = new CampoDTO();
+                // Establecemos el nombre de la columna en el objeto CampoDTO
+                campoDTO.setColumnName(metaData.getColumnName(i));
+                // Establecemos el tipo de dato de la columna en el objeto CampoDTO
+                campoDTO.setDataType(metaData.getColumnTypeName(i));
+                campoDTO.setColumnNameConvert(metaData.getColumnName(i));
+                campoDTO.setAlias(metaData.getColumnName(i));
+                
+                // Verificamos si el tipo de dato es VARCHAR
+                if ("VARCHAR2".equals(metaData.getColumnTypeName(i))) {
+                    // Si es VARCHAR, obtenemos la longitud máxima
+                    int maxLength = metaData.getColumnDisplaySize(i);
+                    // Establecemos la longitud máxima en el objeto CampoDTO
+                    campoDTO.setMaxLength(maxLength);
+                    campoDTO.setMaxLeghtConvert(maxLength);
+                }
+                
+                // Agregamos el objeto CampoDTO a la lista de campos
+                campos.add(campoDTO);
+            }
+        }
+        
+        // Ahora puedes realizar las transformaciones utilizando los datos almacenados en la tabla temporal
+        
+        return campos;
     }
 
 

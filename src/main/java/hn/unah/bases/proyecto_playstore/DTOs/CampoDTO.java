@@ -63,11 +63,11 @@ public class CampoDTO {
     }
 
     public void upperColumn(){
-        this.columnNameConvert= "UPPER("+this.columnName+") as columnName";
+        this.columnNameConvert= "UPPER("+this.columnName+") as " + alias;
     }
 
     public void lowerColumn(){
-        this.columnNameConvert="LOWER("+this.columnName+") as columnName";
+        this.columnNameConvert="LOWER("+this.columnName+") as " + alias;
     }
 
     public void concatValues(String value, String alias){
@@ -97,7 +97,7 @@ public class CampoDTO {
 
         this.alias=alias;
         if(periodo.equals("HOUR")){
-            this.columnNameConvert="TO_CHAR(TO_TIMESTAMP( "+this.columnName +"),) as "+alias;
+            this.columnNameConvert="TO_CHAR(TO_TIMESTAMP( "+this.columnName +"),'HH24:MI:SS') as "+alias;
           //  this.columnNameConvert="EXTRACT( "+periodo+" FROM TO_TIMESTAMP( "+this.columnName +") ) as "+alias;
         }else{
             this.columnNameConvert="EXTRACT( "+periodo+" FROM "+this.columnName +" ) as "+alias;

@@ -1,17 +1,23 @@
 package hn.unah.bases.proyecto_playstore;
 
 import java.sql.Connection;
+import java.util.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Scanner;
+import javax.sql.rowset.RowSetProvider;
+
+import javax.sql.rowset.CachedRowSet;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import hn.unah.bases.proyecto_playstore.DTOs.CampoDTO;
+
 import hn.unah.bases.proyecto_playstore.DTOs.ConexionDTO;
 
 @SpringBootApplication
@@ -180,15 +186,15 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 				// CREAMOS LA ESTRUCTURA PARA OBTENER LOS CAMPOS DE LA TABLA
 				CamposPorTabla camposPorTabla = new CamposPorTabla();
-				ArrayList<CampoDTO> campos = new ArrayList<CampoDTO>();
-				ResultSet resultado=null;
-				String consultaFrom =null;
-				boolean fromTable=false;
+				ResultSet resultado = null;
+				CachedRowSet resultadoOrigen = RowSetProvider.newFactory().createCachedRowSet();
+				String consultaFrom = null;
+				boolean fromTable = false;
 
 				switch (opcion) {
 					case 1:
 						// Lógica para la opción 1: Escoger tabla
-						fromTable=true;
+						fromTable = true;
 						// ENVIAMOS LA INFORMACIÓN DE LA CONEXION A LA TABLA ENVIAMOS EL
 						// ESCHEMA(USUARIO) Y LA CONEXION EXISTOSA
 						tablas = tablasPorConexion.obtenerTablas(conexionOrigen.getUsername(), conOrigen);
@@ -222,11 +228,15 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 						} // WHILE DE INGRESO DE VALOR NUMERICO
 
 						// OBTENEMOS LOS CAMPOS
-						campos = camposPorTabla.obtenerCampos(conOrigen, tablas.get(tableSelect));
+						resultado = camposPorTabla.obtenerCampos2(conOrigen, tablas.get(tableSelect));
+
+						
+						resultadoOrigen.populate(resultado);
+
 						break;
 					case 2:
 						// Lógica para la opción 2: Ingresar consulta
-						fromTable=false;
+						fromTable = false;
 						boolean consultaCorrecta = false;
 
 						while (!consultaCorrecta) {
@@ -235,60 +245,46 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 							try {
 
-								resultado=camposPorTabla.obtenerCamposConsulta2(conOrigen, consulta);
+								resultado = camposPorTabla.obtenerCamposConsulta2(conOrigen, consulta);
 								consultaCorrecta = true;
-								/** campos = camposPorTabla.obtenerCamposConsulta(conOrigen, consulta);
-								
-								if (campos != null) {
-									consultaCorrecta = true;
-									//ES NECESARIO TENER ESTA CONSULTA PARA OBTENER LOS DATOS LUEGO DE LA TRANSFORMACIÓN
-									//NECESITO TODO LO QUE ESTÁ DESPUES DEL FROM
-									//consultaFrom=camposPorTabla.devolverFrom(consulta);	
-								} else {
-									System.out
-											.println("La consulta no produjo resultados válidos. Intente nuevamente.");
-								}*/
-								
+
 							} catch (Exception e) {
 								System.out.println("Error al ejecutar la consulta: " + e.getMessage());
 								consultaCorrecta = false;
 							}
 						}
 
+						resultadoOrigen.populate(resultado);
 						break;
 
 				}// SWITCH DE TABLA O CONSULTA
 
 				// MOSTRAMOS LOS CAMPOS DE LA TABLA O LOS OBTENIDOS CON LA CONSULTA
-				if(fromTable){
-					i = 0;
-					System.out.printf("\nLos campos de la tabla seleccionada son : \n");
-					for (CampoDTO campo : campos) {
-						System.out.printf("\t%s. %-30s  %-15s %d\n", i, campo.getColumnName(), campo.getDataType(),
-								campo.getMaxLength());
-						i++;
-					}
-				}else if(!fromTable){
-					// Obtenemos metadatos sobre el resultado de la consulta
-					ResultSetMetaData metaData = resultado.getMetaData();
-					// Obtenemos el número total de columnas en el resultado
-					int columnCount = metaData.getColumnCount();
-					if (columnCount > 0) {
-						// Iteramos sobre cada columna en el resultado
-						for (int l = 1; l <= columnCount; l++) {
 
-							System.out.printf("\t%s. %-30s  %-15s %d\n", i, metaData.getColumnName(l), metaData.getColumnTypeName(l),
-							metaData.getColumnDisplaySize(i));
+				// Obtenemos metadatos sobre el resultado de la consulta
+				ResultSetMetaData metaData = resultadoOrigen.getMetaData();
+				// Obtenemos el número total de columnas en el resultado
+				int columnCount = metaData.getColumnCount();
+				fromTable = false;
 
-						}
+				if (columnCount > 0) {
+
+					System.out.printf("\nLos campos de la consulta proporcionada son : \n");
+					for (int l = 1; l <= columnCount; l++) {
+
+						System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaData.getColumnName(l),
+								metaData.getColumnTypeName(l), metaData.getColumnDisplaySize(l));
+
 					}
 
-				}	
-				// Arreglo que permite almacenar los campos que el usuario seleccionó, esto es
-				// lo que trabajaremos en el data convert
-				ArrayList<CampoDTO> camposSelect = new ArrayList<CampoDTO>();
+				} // IF COLUMNAS O CAMPOS ENCONTRADAS EN CONSULTA
+
+				// EL USUARIO SELECCIONA LOS CAMPOS QUE DESEA LLEVAR A LA CONVERSION
 
 				seleccionCorrecta = false;
+				// ESTE ARREGLO CONTIENE LOS VALORES DE LOS CAMPOS QUE EL USUARIO QUIERE
+				// TRANSFORMAR
+				String[] valores = null;
 
 				while (!seleccionCorrecta) {
 
@@ -297,20 +293,16 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 					String entrada;
 					entrada = input.next();
 
-					String[] valores = entrada.split(",");
+					// ESTE ARREGLO CONTIENE LOS VALORES DE LOS CAMPOS QUE EL USUARIO QUIERE
+					// TRANSFORMAR
+					valores = entrada.split(",");
 
+					// VERIFICAMOS QUE LOS VALORES SEAN CORRECTOS SI NO LOS SOLICITAMOS DE NUEVO
 					for (String valor : valores) {
-						CampoDTO campoDTO = new CampoDTO();
+
 						int index = Integer.parseInt(valor);
 
-						if (index >= 0 && index < campos.size()) {
-							campoDTO.setColumnName(campos.get(index).getColumnName());
-							campoDTO.setDataType(campos.get(index).getDataType());
-							campoDTO.setMaxLength(campos.get(index).getMaxLength());
-							campoDTO.setAlias(campos.get(index).getColumnName());
-							campoDTO.setColumnNameConvert(campos.get(index).getColumnName());
-							campoDTO.setMaxLeghtConvert(campos.get(index).getMaxLength());
-							camposSelect.add(campoDTO);
+						if (index > 0 && index <= columnCount) {
 
 							seleccionCorrecta = true;
 						} else {
@@ -331,12 +323,11 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 				System.out.println("╚═════════════════════════════════════════════════════════════╝");
 				System.out.println("\n\n");
 
-				seleccionCorrecta=false;
-				int convertir=0;
+				seleccionCorrecta = false;
+				int convertir = 0;
 
 				while (!seleccionCorrecta) {
-					
-			
+
 					System.out.println("╭───────────────────────────╮");
 					System.out.println("│                           │");
 					System.out.println("│  Opciones disponibles     │");
@@ -348,40 +339,51 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 					convertir = input.nextInt();
 
-					if(convertir==1 || convertir==2){
-						seleccionCorrecta=true;
+					if (convertir == 1 || convertir == 2) {
+						seleccionCorrecta = true;
 					}
-				}
+				} // while de convertir o continuar
+
 				
-				
-				if(convertir==1){
+
+				if (convertir == 1) {
 					boolean transformar = true;
 					int transformarSelect = 1;
 					int indexSelect = -1;
-					
+				    String campoEnConver = null;
+					opcion=0;
 
-					while (transformar) {
-						seleccionCorrecta = false;
-
+						while (transformar) {
+							
 							// MOSTRAMOS A LOS USUARIOS LOS CAMPOS SELECCIONADOS
-						i = 0;
-						System.out.printf("\nCampos para transformación  \n");
-						for (CampoDTO campoConver : camposSelect) {
+							if (columnCount > 0) {
 
-							System.out.printf("\t%s. %-30s  %-15s %d\n", i, campoConver.getColumnName(),
-									campoConver.getDataType(), campoConver.getMaxLength());
-							i++;
-						}
+								System.out.printf("\nCampos para transformación : \n");
+								for (String valor : valores) {
+									int l = Integer.parseInt(valor);
 
-						transformarSelect = 1;
+									System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaData.getColumnName(l),
+											metaData.getColumnTypeName(l), metaData.getColumnDisplaySize(l));
 
-						while (!seleccionCorrecta) {
+								}
+
+							} // IF CAMPOS ESCOGIDOS POR EL USUARIO
+
+
+							transformarSelect = 1;
+							seleccionCorrecta=false;
+							
 							System.out.printf("\nEscoja el campo que desea transformar  \n");
 							indexSelect = input.nextInt();
-							String tipo = camposSelect.get(indexSelect).getDataType();
-							System.out.println(tipo);
-							if ("VARCHAR2".equals(camposSelect.get(indexSelect).getDataType())
-									|| "CHAR".equals(camposSelect.get(indexSelect).getDataType())) {
+
+							
+							
+							//OBTENEMOS EL TIPO DEL CAMPO SELECCIONADO PARA TRANSFORMAR
+							String tipo = metaData.getColumnTypeName(indexSelect);
+							campoEnConver =metaData.getColumnName(indexSelect);
+
+							if ("VARCHAR2".equals(tipo)
+									|| "CHAR".equals(tipo)) {
 								System.out.println("╭───────────────────────────╮");
 								System.out.println("│                           │");
 								System.out.println("│  Opciones disponibles     │");
@@ -392,8 +394,8 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 								System.out.println("│  4. Concatenar valor      │");
 								System.out.println("╰───────────────────────────╯");
 
-							} else if ("TIMESTAMP".equals(camposSelect.get(indexSelect).getDataType())
-									|| "DATE".equals(camposSelect.get(indexSelect).getDataType())) {
+							} else if ("TIMESTAMP".equals(tipo)
+									|| "DATE".equals(tipo)) {
 
 								System.out.println("╭──────────────────────╮");
 								System.out.println("│                      │");
@@ -419,107 +421,131 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 							// Limpiar el salto de línea pendiente después de nextInt()
 							input.nextLine();
 
-						} // WHILE DE SELECCION CORRECTA
+						
 
 						switch (opcion) {
 							case 1:
 								// Lógica para la opción 1: Ingresar consulta
-								camposSelect.get(indexSelect).upperColumn();
-								break;
+								resultadoOrigen.first();
+								do {
+
+									String campo = resultadoOrigen.getString(campoEnConver);
+									String campoMayus = campo.toUpperCase();
+									resultadoOrigen.updateString(campoEnConver, campoMayus);
+									
+								}while (resultadoOrigen.next());
+
+						
+							break;
 							case 2:
-								// Lógica para la opción 2: Ingresar consulta
-								camposSelect.get(indexSelect).lowerColumn();
-								break;
+								// Lógica para la opción 1: Ingresar consulta
+								resultadoOrigen.first();
+								do {
+
+									String campo = resultadoOrigen.getString(campoEnConver);
+									String campoMinus = campo.toLowerCase();
+									resultadoOrigen.updateString(campoEnConver, campoMinus);
+									
+								}while (resultadoOrigen.next());
+
+								
+
+								//camposSelect.get(indexSelect).upperColumn();
+							break;
 							case 3:
-								// Lógica para la opción 3: Ingresar consulta
+								// Lógica para la opción 1: Ingresar consulta
 								seleccionCorrecta = false;
 								int campoConcat = -1;
-								String alias = null;
-								CampoDTO campo2 = new CampoDTO();
-
+								
+								
 								// MOSTRAMOS LA LISTA DE CAMPOS CON LOS QUE PUEDE CONCATENAR
 								i = 0;
 								System.out.printf("\nCampos para concatenar  \n");
-								for (CampoDTO campoConver : camposSelect) {
+								// MOSTRAMOS A LOS USUARIOS LOS CAMPOS SELECCIONADOS
+								if (columnCount > 0) {
 
-									System.out.printf("\t%s. %-30s  %-15s %d\n", i, campoConver.getColumnName(),
-											campoConver.getDataType(), campoConver.getMaxLength());
-									i++;
-								}
+									for (String valor : valores) {
+										int l = Integer.parseInt(valor);
+
+										System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaData.getColumnName(l),
+												metaData.getColumnTypeName(l), metaData.getColumnDisplaySize(l));
+
+									}
+
+								} // IF CAMPOS ESCOGIDOS POR EL USUARIO
 
 								while (!seleccionCorrecta) {
 									System.out.printf("\nIngrese el valor del campo a concatenar  \n");
 									campoConcat = input.nextInt();
+							
+									boolean encontrado = Arrays.asList(valores).contains(String.valueOf(campoConcat));
 
-									if (campoConcat <= 0 || campoConcat < camposSelect.size()) {
+									if (encontrado) {
 										seleccionCorrecta = true;
 									} else {
 										seleccionCorrecta = false;
 									}
-
-									System.out.printf("\nIngrese el valor del alias  \n");
-									alias = input.next();
 								}
-								// copiamos el campo a concatenar
-								campo2 = camposSelect.get(campoConcat);
-								// llamamos a la función para concatenar
-								camposSelect.get(indexSelect).concatValues(campo2, alias);
+
+								resultadoOrigen.first();	
+								do{
+									String campo1 = resultadoOrigen.getString(campoEnConver);
+									String campo2 = resultadoOrigen.getString(metaData.getColumnName(campoConcat));
+									String campo3=campo1+" "+campo2;
+									resultadoOrigen.updateString(campoEnConver, campo3);
+
+								}while(resultadoOrigen.next());
 								
 
-								break;
+								//camposSelect.get(indexSelect).upperColumn();
+							break;
 							case 4:
-								// Lógica para la opción 4: Escoger tabla
-
+								// Lógica para la opción 1: Ingresar consulta
 								String valor = null;
-								String aliasV = null;
 								System.out.printf("\nIngrese el valor a concatenar  \n");
-								valor = input.next();
+								valor = input.nextLine();
 
-								System.out.printf("\nIngrese el valor del alias  \n");
-								aliasV = input.next();
+								resultadoOrigen.first();
+								do {
 
-								camposSelect.get(indexSelect).concatValues(valor, aliasV);
-								break;
+									String campo = resultadoOrigen.getString(campoEnConver);
+									String campo2 = campo+" "+valor;
+									resultadoOrigen.updateString(campoEnConver, campo2);
+									
+								}while (resultadoOrigen.next());
+
+								
+
+								//camposSelect.get(indexSelect).upperColumn();
+							break;
 							case 5:
-								// Lógica para la opción 5: Ingresar consulta
-								String aliasB = null;
-								System.out.printf("\nEl valor devuelto será number \n");
-								System.out.printf("\nIngrese el valor del alias  \n");
-								aliasB = input.next();
-								
-								camposSelect.get(indexSelect).Extraer("YEAR", aliasB);
-								camposSelect.get(indexSelect).setDataType("NUMBER");
-								break;
-							case 6:
-								// Lógica para la opción 6: Ingresar consulta
-								String aliasC = null;
-								System.out.printf("\nEl valor devuelto será number \n");
-								System.out.printf("\nIngrese el valor del alias  \n");
-								aliasC = input.next();
-								
-								camposSelect.get(indexSelect).Extraer("MONTH", aliasC);
-								camposSelect.get(indexSelect).setDataType("NUMBER");
-								break;
-							case 7:
-								// Lógica para la opción 7: Ingresar consulta
-								String aliasD = null;
-								System.out.printf("\nEl valor devuelto será number \n");
-								System.out.printf("\nIngrese el valor del alias  \n");
-								aliasD = input.next();
-								camposSelect.get(indexSelect).Extraer("DAY", aliasD);
-								camposSelect.get(indexSelect).setDataType("NUMBER");
-								break;
-							case 8:
-								// Lógica para la opción 8: Ingresar consulta
-								System.out.printf("\nEl valor devuelto será VARCHAR2 \n");
-								String aliasE = null;
-								System.out.printf("\nIngrese el valor del alias  \n");
-								aliasE = input.next();
-								camposSelect.get(indexSelect).Extraer("HOUR",aliasE);
-								camposSelect.get(indexSelect).setDataType("VARCHAR2");
-								break;
+								Calendar calendar = Calendar.getInstance();
 
-						}
+								resultadoOrigen.first();	
+								do {
+									// Lógica para la opción 5: Ingresar consulta
+									Date campo = resultadoOrigen.getDate(campoEnConver);
+									calendar.setTime(campo);
+									calendar.clear();
+
+									int anio = calendar.get(Calendar.YEAR);
+									calendar.set(Calendar.YEAR, anio);
+									
+									Date date = calendar.getTime();
+									java.sql.Date sqlDate = new java.sql.Date(date.getTime());
+									resultadoOrigen.updateDate(campoEnConver,sqlDate);
+
+									
+								}while (resultadoOrigen.next());
+
+								System.out.printf("\nEl valor devuelto será date \n");
+								
+								
+							break;	
+						
+						}//Switch
+
+
 
 						System.out.println("╭───────────────────────╮");
 						System.out.println("│                       │");
@@ -544,10 +570,11 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 							} else {
 								seleccionCorrecta = false;
 							}
-						}
+						
+						} // WHILE SELECCION CORRECTA
+					} // WHILE TRANSFORMACION
 
-					} // WHILE DE TRANSFORMACIÓN
-				}//IF DE CONVERSIÓN
+				}  // FINAL DEL ELSE DE CONVERTIR
 
 				System.out.println("╔═════════════════════════════════════════════════════════════╗");
 				System.out.println("║                                                             ║");
@@ -648,8 +675,8 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 				// CREAMOS LA ESTRUCTURA PARA OBTENER LOS CAMPOS DE LA TABLA DE DESTINO
 				CamposPorTabla camposPorTablaDes = new CamposPorTabla();
-				ArrayList<CampoDTO> camposDes = new ArrayList<CampoDTO>();
-				camposDes = camposPorTablaDes.obtenerCampos(conDestino, tablasDes.get(tableSelectDes));
+				ResultSet resultadoDestino = null;
+				resultadoDestino = camposPorTablaDes.obtenerCampos2(conDestino, tablasDes.get(tableSelectDes));
 
 				// IMPRIMIMOS LOS CAMPOS TANTO DE LA TABLA DE ORIGEN COMO DESTINO PARA
 				// ORDENARLOS
@@ -658,19 +685,31 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 				i = 0;
 				System.out.printf("\nLos campos de la tabla destino %s son : \n", tablasDes.get(tableSelectDes));
-				for (CampoDTO campoDes : camposDes) {
+				
+				ResultSetMetaData metaDataDes = resultadoDestino.getMetaData();
+				// Obtenemos el número total de columnas en el resultado
+				int columnCountDes = metaDataDes.getColumnCount();
 
-					System.out.printf("\t%s. %-30s  %-15s %d \n", i, campoDes.getColumnName(), campoDes.getDataType(),
-							campoDes.getMaxLength());
-					i++;
-				}
+				if (columnCountDes > 0) {
 
-				i = 0;
+					for (int l = 1; l <= columnCountDes; l++) {
+
+						System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaDataDes.getColumnName(l),
+						metaDataDes.getColumnTypeName(l), metaDataDes.getColumnDisplaySize(l));
+
+					}
+
+				} // IF COLUMNAS O CAMPOS ENCONTRADAS EN TABLA DE DESTINO
+
+				
 				System.out.printf("\nLos campos de origen  son : \n");
-				for (CampoDTO campoSelect : camposSelect) {
-					System.out.printf("\t%s. %-30s  %-15s  %d  \n", i, campoSelect.getAlias(),
-							campoSelect.getDataType(), campoSelect.getMaxLeghtConvert());
-					i++;
+
+				for (String valor : valores) {
+					int l = Integer.parseInt(valor);
+
+					System.out.printf("\t%s. %-30s  %-15s %d\n", l, metaData.getColumnName(l),
+							metaData.getColumnTypeName(l), metaData.getColumnDisplaySize(l));
+
 				}
 
 				String orden;
@@ -678,52 +717,24 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 
 				String[] valoresOrden = orden.split(",");
 
-				ArrayList<String> camposSelectOrden = new ArrayList<String>();
-				//ArrayList<CampoDTO> camposOrden = new ArrayList<CampoDTO>();
-
-				for (int j = 0; j < valoresOrden.length; j++) {
+				//VERIFICAR EL VALOR DE LOS VALORES INGRESADOS AQUI
+				/*for (int j = 0; j < valoresOrden.length; j++) {
 					int index = Integer.parseInt(valoresOrden[j]);
 
-					camposSelectOrden.add(camposSelect.get(index).getColumnNameConvert());
-					//camposOrden.add(camposSelect.get(index));
-					/**
-					 * // Agregar coma si no es el último elemento
-					 * if (j < valoresOrden.length - 1) {
-					 * camposSelectOrden.add(",");
-					 * }
-					 */
-				}
+					
+				}*/
 
 				// Tengo el orden ahora necesito ingresarlos en la tabla
 				IngresarDatosDestino ingresarDatosDestino = new IngresarDatosDestino();
 
-				//ALTERAMOS LOS CAMPOS EN LA TABLA DESTINO QUE NECESITAN CAMBIAR SU LONGITUD
-				for(int k=0;k<camposDes.size();k++){
-					//obtenemos el primer indice en orden
-					int select =Integer.parseInt(valoresOrden[k]);
-
-					// Obtenemos la logitudes maximas de origen y destino
-					int maxLeghtOrigen= camposSelect.get(select).getMaxLeghtConvert(); 
-					int maxLeghtDestino=camposDes.get(k).getMaxLength();
-
-					if(maxLeghtOrigen>maxLeghtDestino){
-						String cambio = camposDes.get(k).getDataType()+"("+maxLeghtOrigen+")";
-						ingresarDatosDestino.alterMaxLength(conDestino,tablasDes.get(tableSelectDes) , camposDes.get(k).getColumnName(), cambio);
-					}
-				}
-
 				
-				if(fromTable){
+				
+				
 					
-					int cantInsert = ingresarDatosDestino.ingresarRegistros(conOrigen, conDestino, camposSelectOrden,
-							tablas.get(tableSelect), tablasDes.get(tableSelectDes));
+					int cantInsert = ingresarDatosDestino.ingresarRegistros2( conDestino, resultadoOrigen,
+					valoresOrden, tablasDes.get(tableSelectDes));
 					System.out.printf("La cantidad de registros ingresados fueron : %d\n", cantInsert);
-				}else if(!fromTable){
-					//si no es una tabla volvemos a armar la consulta para obtener los datos ahora transformados
-					int cantInsert = ingresarDatosDestino.ingresarRegistros(conOrigen, conDestino, camposSelectOrden,
-					consultaFrom, tablasDes.get(tableSelectDes));
-					System.out.printf("La cantidad de registros ingresados fueron : %d\n", cantInsert);	
-				}
+				
 				
 
 				// CERRAR CONEXION DE ORIGEN y DESTINO
@@ -739,179 +750,25 @@ public class ProyectoPlaystoreApplication implements CommandLineRunner {
 				System.out.println("╰───────────────────╯");
 
 				seleccionCorrecta = false;
-				int opcionEtl=0;
-					while (!seleccionCorrecta) {
-						opcionEtl = input.nextInt();
+				int opcionEtl = 0;
+				while (!seleccionCorrecta) {
+					opcionEtl = input.nextInt();
 
-						if (opcionEtl == 1) {
-							crear = true;
-							seleccionCorrecta = true;
+					if (opcionEtl == 1) {
+						crear = true;
+						seleccionCorrecta = true;
 
-						} else if (opcionEtl == 2) {
-							crear = false;
-							seleccionCorrecta = true;
-						} else {
-							seleccionCorrecta = false;
-						}
+					} else if (opcionEtl == 2) {
+						crear = false;
+						seleccionCorrecta = true;
+					} else {
+						seleccionCorrecta = false;
 					}
+				}
 
 			} // WHILE DE CREACION ETL
 
-			/**
-			 * i = 0;
-			 * System.out.printf("\nVer tablas de la conexión %s: \n",
-			 * conexionOrigen.getUsername());
-			 * for (String tabla : tablas) {
-			 * System.out.printf("\t%s. %s\n", i, tabla);
-			 * i++;
-			 * }
-			 * 
-			 * System.out.printf("\nSelecciona una tabla: \n");
-			 * int tableSelect;
-			 * tableSelect = input.nextInt();
-			 * input.nextLine(); // Consumir el carácter de nueva línea en el búfer
-			 * 
-			 * CamposPorTabla camposPorTabla = new CamposPorTabla();
-			 * ArrayList<CampoDTO> campos = new ArrayList<CampoDTO>();
-			 * campos = camposPorTabla.obtenerCampos(conexionOrigen.getUsername(),
-			 * contraseniaOrigen,
-			 * tablas.get(tableSelect));
-			 * 
-			 * i = 0;
-			 * System.out.printf("\nLos campos de la tabla %s son : \n",
-			 * tablas.get(tableSelect));
-			 * for (CampoDTO campo : campos) {
-			 * System.out.printf("\t%s. %-30s %s\n", i, campo.getColumnName(),
-			 * campo.getDataType());
-			 * i++;
-			 * }
-			 * 
-			 * System.out.printf("\nSeleccione los campos que desea obtener, separe los
-			 * valores con una coma : \n");
-			 * String entrada;
-			 * entrada = input.nextLine();
-			 * 
-			 * String[] valores = entrada.split(",");
-			 * 
-			 * // Arreglo que permite almacenar los campos que el usuario seleccionó, esto
-			 * es
-			 * // lo que trabajaremos en el data convert
-			 * ArrayList<CampoDTO> camposSelect = new ArrayList<CampoDTO>();
-			 * 
-			 * for (String valor : valores) {
-			 * CampoDTO campoDTO = new CampoDTO();
-			 * 
-			 * campoDTO.setColumnName(campos.get(Integer.parseInt(valor)).getColumnName());
-			 * campoDTO.setDataType(campos.get(Integer.parseInt(valor)).getDataType());
-			 * 
-			 * camposSelect.add(campoDTO);
-			 * }
-			 * 
-			 * // AQUI FALTA LA TRANFORMACIÓN;
-			 * 
-			 * // DESTINO
-			 * // Escogemos la conexión y la tabla de destino
-			 * i = 0;
-			 * System.out.println("Ver conexiones2 disponibles: ");
-			 * for (ConexionDTO conexionDTO : conexiones) {
-			 * System.out.printf("\t%s. %s\n", i, conexionDTO.getUsername());
-			 * i++;
-			 * }
-			 * 
-			 * System.out.print("\nElija la conexión para la Base de datos OLTP: ");
-			 * int conexionSelecDes;
-			 * conexionSelecDes = input.nextInt();
-			 * 
-			 * ConexionDTO conexionOLAPDes = conexiones.get(conexionSelecDes);
-			 * System.out.printf("Escriba la contrasenia del usuario %s: ",
-			 * conexionOLAPDes.getUsername());
-			 * String contraseniaDes;
-			 * contraseniaDes = input.next();
-			 * 
-			 * TablasPorConexion tablasPorConexionDes = new TablasPorConexion();
-			 * ArrayList<String> tablasDes = new ArrayList<String>();
-			 * tablasDes = tablasPorConexionDes.obtenerTablas(conexionOLAPDes.getUsername(),
-			 * contraseniaDes);
-			 * 
-			 * i = 0;
-			 * System.out.printf("\nVer tablas de la conexión %s: \n",
-			 * conexionOLAP.getUsername());
-			 * for (String tablaDes : tablasDes) {
-			 * System.out.printf("\t%s. %s\n", i, tablaDes);
-			 * i++;
-			 * }
-			 * 
-			 * System.out.printf("\nSelecciona una tabla: \n");
-			 * int tableSelectDes;
-			 * tableSelectDes = input.nextInt();
-			 * input.nextLine(); // Consumir el carácter de nueva línea en el búfer
-			 * 
-			 * CamposPorTabla camposPorTablaDes = new CamposPorTabla();
-			 * ArrayList<CampoDTO> camposDes = new ArrayList<CampoDTO>();
-			 * camposDes = camposPorTablaDes.obtenerCampos(conexionOLAPDes.getUsername(),
-			 * contraseniaDes,
-			 * tablasDes.get(tableSelectDes));
-			 * 
-			 * System.out.printf(
-			 * "\nIngrese el valor de los campos de origen en orden para los campos de
-			 * destino, separe con comas: \n");
-			 * 
-			 * i = 0;
-			 * System.out.printf("\nLos campos de la tabla destino %s son : \n",
-			 * tablasDes.get(tableSelectDes));
-			 * for (CampoDTO campoDes : camposDes) {
-			 * 
-			 * System.out.printf("\t%s. %-30s %s \n", i, campoDes.getColumnName(),
-			 * campoDes.getDataType());
-			 * i++;
-			 * }
-			 * 
-			 * i = 0;
-			 * System.out.printf("\nLos campos de la tabla origen %s son : \n",
-			 * tablas.get(tableSelect));
-			 * for (CampoDTO campoSelect : camposSelect) {
-			 * System.out.printf("\t%s. %-30s %s \n", i, campoSelect.getColumnName(),
-			 * campoSelect.getDataType());
-			 * i++;
-			 * }
-			 * 
-			 * String orden;
-			 * orden = input.nextLine();
-			 * 
-			 * String[] valoresOrden = orden.split(",");
-			 * 
-			 * ArrayList<String> camposSelectOrden = new ArrayList<String>();
-			 * 
-			 * for (int j = 0; j < valoresOrden.length; j++) {
-			 * int index = Integer.parseInt(valoresOrden[j]);
-			 * 
-			 * camposSelectOrden.add(camposSelect.get(index).getColumnName());
-			 * 
-			 * /**
-			 * // Agregar coma si no es el último elemento
-			 * if (j < valoresOrden.length - 1) {
-			 * camposSelectOrden.add(",");
-			 * }
-			 * 
-			 * }
-			 * 
-			 * // Tengo el orden ahora necesito ingresarlos en la tabla
-			 * IngresarDatosDestino ingresarDatosDestino = new IngresarDatosDestino();
-			 * int cantInsert =
-			 * ingresarDatosDestino.ingresarRegistros(conexionOLAP.getUsername(),
-			 * contrasenia,
-			 * conexionOLAPDes.getUsername(), contraseniaDes, camposSelectOrden,
-			 * tablas.get(tableSelect),
-			 * tablasDes.get(tableSelectDes));
-			 * System.out.printf("La cantidad de registros ingresados fueron : %d",
-			 * cantInsert);
-			 * } catch (Exception e) {
-			 * System.out.println(e);
-			 * }
-			 */
-
 		}
-
-	}
+}
 
 }
